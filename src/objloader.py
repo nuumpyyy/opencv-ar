@@ -1,4 +1,4 @@
-# objloader from:
+# objloader script from:
 # http://www.pygame.org/wiki/OBJFileLoader
 
 import pygame
