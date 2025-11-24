@@ -12,18 +12,18 @@ COLOR = (252, 225, 231)
 if in_mtx is None:
     in_mtx = np.array([
         [1536, 0, 960],
-        [0, 1536, 540]
+        [0, 1536, 540],
         [0, 0, 1]
     ])
 
 def main():
     # initiate video capture
-    cap = cv.VideoCapture(0)
+    cap = cv.VideoCapture(1)
     # load reference card surface image
     dir_name = os.getcwd()
     ref = cv.imread(os.path.join(dir_name, 'surface/ref.png'), 0) # static reference image
     # load 3D Pokémon model from OBJ file
-    model = OBJ(os.path.join(dir_name, 'projection/pikachu.obj'), swapyz=True)
+    model = OBJ(os.path.join(dir_name, 'projection/fox.obj'), swapyz=True)
 
     while True:
         # extract current video frame
@@ -31,10 +31,12 @@ def main():
         if not ret:
             print("Video capture unsuccessful.")
             return
+        
+        cv.imshow("livestream", scene)
 
         # obtain keypoints from and matches between reference image and video capture scene
         matches, kp_ref, kp_scene = detect_and_match(ref, scene)
-
+        
         # estimate homography if enough matches are found
         if len(matches) >= MIN_MATCHES:
             src_pts = np.float32([kp_ref[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
@@ -54,10 +56,13 @@ def main():
 
         else:
             print("Not enough matches found.")
+
+        # command to exit program
+        if cv.waitKey(1) & 0xFF == ord('q'):
+            break
     
     cap.release()
     cv.destroyAllWindows()
-    return 0
 
 def detect_and_match(ref, scene):
     # initiate SIFT keypoint detector
@@ -73,9 +78,9 @@ def detect_and_match(ref, scene):
     # sort matches in order of distance
     matches = sorted(matches, key=lambda x: x.distance)
     # only keep good matches according to Lowe's ratio test
-    for m, n in matches:
-        if m.distance > 0.7*n.distance:
-            matches.remove(m)
+    #for m, n in matches:
+        #if m.distance > 0.7*n.distance:
+            #matches.remove(m)
     return matches, kp_ref, kp_scene
 
 def projection_matrix(in_mtx, homo):
@@ -107,7 +112,7 @@ def render(scene, ref, model, proj, color):
     h, w = ref.shape
     vertices = model.vertices
     mtx = np.eye(3)*3
-    # project camera calibration matrix onto 
+    # project camera calibration matrix onto each 3D point of model
     for face in model.faces:
         face_vertices = face[0]
         points = np.array([vertices[vertex - 1] for vertex in face_vertices])
