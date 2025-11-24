@@ -5,6 +5,8 @@ import numpy as np
 import cv2 as cv
 import glob
 
+in_mtx = None
+
 # termination criteria
 criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
@@ -34,11 +36,9 @@ for fname in images:
 
     # test
     if img is None:
-        print("Failed to load image!")
+        print("Failed to load image.")
         continue
     print("Shape:", img.shape)
     print("Corners found:", ret)
 
-    ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
-
-    print(mtx)
+    # ret, in_mtx, dist, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
