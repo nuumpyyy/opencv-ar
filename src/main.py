@@ -1,5 +1,6 @@
 import cv2 as cv
 
+# currently we are able to see matches between reference image and image in scene
 def main():
     cap = cv.VideoCapture(1)
 
