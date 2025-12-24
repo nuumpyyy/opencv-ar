@@ -3,7 +3,7 @@ import cv2 as cv
 # Currently we are able to see matches between reference image and image in scene
 def main():
     # initiate video capture
-    cap = cv.VideoCapture(1)
+    cap = cv.VideoCapture(0)
 
     # load static reference image
     ref = cv.imread('surface/ref.png')
