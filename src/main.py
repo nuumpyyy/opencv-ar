@@ -34,13 +34,20 @@ def main():
         # sort matches
         matches = sorted(matches, key=lambda x: x.distance)
 
-        # compute homography if more than 10 matches are found
+        # compute homography matrix if more than 10 matches are found
         if len(matches) > 10:
+            # initialize homography matrix as None
+            homo_matrix = None
             # extract locations of matched keypoints between the reference and scene images
             src_pts = np.float32([kp_ref[m.queryIdx].pt for m in matches]).reshape(-1,1,2)
             dst_pts = np.float32([kp_scene[m.trainIdx].pt for m in matches]).reshape(-1,1,2)
 
             homo_matrix, mask = cv.findHomography(src_pts, dst_pts, cv.RANSAC, 5.0)
+
+            # compute projection matrix and render 3D model if homography matrix is computed
+            if homo_matrix is not None:
+                projection = projection_mtx(homo_matrix)
+                
         else:
             print(f"Not enough matches found — {len(matches)}/10.")
 
@@ -56,7 +63,12 @@ def main():
     cap.release()
     cv.destroyAllWindows()
 
-    print(homo_matrix)
+    print(homo_matrix, projection)
+
+def projection_mtx(homo_matrix):
+    in_mtx_inv = np.linalg.inv(in_mtx)
+    extract = np.dot(homo_matrix, in_mtx_inv)
+    return extract
 
 if __name__ == "__main__":
     main()
