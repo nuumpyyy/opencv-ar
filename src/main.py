@@ -56,8 +56,8 @@ def get_rvecs_and_tvecs(marker_size, corners):
                             [-marker_size / 2, - marker_size / 2, 0]], dtype=np.float32)
     rvecs = []
     tvecs = []
-    for corner in corners:
-        _, R, t = cv.solvePnP(marker_pts, corner, IN_MTX_OPTIMAL, DIST_COEFFS, False, cv.SOLVEPNP_IPPE_SQUARE)
+    for c in corners:
+        _, R, t = cv.solvePnP(marker_pts, c, IN_MTX_OPTIMAL, DIST_COEFFS, False, cv.SOLVEPNP_IPPE_SQUARE)
         rvecs.append(R)
         tvecs.append(t)
     return rvecs, tvecs
@@ -77,8 +77,20 @@ def get_projection_matrix(rvecs, tvecs):
 
 # Returns frame with ArUco marker blacked out
 def render(frame, projection, corners):
-    for corner in corners:
-        cv.polylines(frame, [corner.astype(np.int32)], True, (0, 255, 255), 3, cv.LINE_AA)
+    # little test, might go to shit
+    h, w = 2699, 2710
+    frame = np.ascontiguousarray(frame, dtype=np.uint8)
+    a = np.array([[0, 0, 0], [w, 0, 0], [w, h, 0], [0, h, 0]], np.float64)
+    imgpts = np.int32(cv.perspectiveTransform(a.reshape(-1, 1, 3), projection))
+    cv.fillConvexPoly(frame, imgpts, (0, 0, 0))
+    for c in corners:
+        # draw square around ArUco marker
+        cv.polylines(frame, [c.astype(np.int32)], True, (0, 255, 255), 3, cv.LINE_AA)
+        # change the shape of numpy array to 4 by 2 for easier access
+        # will this work??? only one way to find out!
+        c = c.reshape(4, 2)
+        c = c.astype(np.int32)
+        cv.fillConvexPoly(frame, c, (0, 0, 0))
     return frame
 
 if __name__ == "__main__":
