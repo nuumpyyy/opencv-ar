@@ -3,3 +3,6 @@ __pycache__/
 
 # ignore test file in repo root
 /test.py
+
+# Python virtual environment
+.venv/

@@ -1,141 +1,101 @@
 import numpy as np
 import cv2 as cv
-from math import *
-from calibration import in_mtx
+from constants import *
 
-# Currently we are able to see matches between reference image and image in scene
 def main():
     # initiate video capture
-    cap = cv.VideoCapture(1)
-
-    # load static reference image
-    ref = cv.imread('surface/ref.jpg')
-    # convert to grayscale
-    ref_gray = cv.cvtColor(ref, cv.COLOR_BGR2GRAY)
-    # load 3D model obj file
-    # create SIFT feature detection object
-    sift = cv.SIFT_create()
-    # compute keypoints and descriptors of reference image
-    kp_ref, des_ref = sift.detectAndCompute(ref_gray, None)
-
-    # create brute force matcher object with default params
-    bf = cv.BFMatcher()
-
+    cap = cv.VideoCapture(0)
+    cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv.CAP_PROP_FPS, 20)
+    if not cap.isOpened():
+        print("Video capture unsuccessful.")
+        return
     while True:
-        # read current frame
-        ret, scene = cap.read()
-        # convert scene image to grayscale
-        scene_gray = cv.cvtColor(scene, cv.COLOR_BGR2GRAY)
+        ret, frame = cap.read()
         if not ret:
-            print("Video capture unsuccessful.")
+            print("Error reading frame.")
             break
-        # compute keypoints and descriptors of card in scene
-        kp_scene, des_scene = sift.detectAndCompute(scene_gray, None)
-        # find matches between reference image of card and card in scene
-        matches = bf.match(des_ref, des_scene)
-        # sort matches
-        matches = sorted(matches, key=lambda x: x.distance)
-
-        # compute homography matrix if more than 10 matches are found
-        if len(matches) > 10:
-            # initialize homography matrix as None
-            homo_matrix = None
-            # extract locations of matched keypoints between the reference and scene images
-            src_pts = np.float32([kp_ref[m.queryIdx].pt for m in matches]).reshape(-1,1,2)
-            dst_pts = np.float32([kp_scene[m.trainIdx].pt for m in matches]).reshape(-1,1,2)
-
-            homo_matrix, mask = cv.findHomography(src_pts, dst_pts, cv.RANSAC, 5.0)
-
-            # compute projection matrix and render 3D model if homography matrix is computed
-            if homo_matrix is not None:
-                projection = projection_mtx(homo_matrix)
-                
-        else:
-            print(f"Not enough matches found — {len(matches)}/10.")
-
-        # draw matches
-        scene = cv.drawMatches(ref, kp_ref, scene, kp_scene, matches[:10], None, flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-
-        cv.imshow("livestream!", scene)
-        # press q to exit video capture
+        # detect whether or not ArUco markers have been found
+        found, corners = detect_aruco_markers(frame)
+        # render 3D model onto frame if ArUco marker found
+        if found:
+            # compute rotation and translation vectors
+            rvecs, tvecs = get_rvecs_and_tvecs(20.2, corners) # side length of marker is about 20.2 cm
+            # calculate projection matrix consisting of intrinsic and extrinsic camera parameters
+            projection = get_projection_matrix(rvecs, tvecs)
+            # render 3D model
+            frame = render(frame, projection, corners)
+        # display frame
+        cv.imshow("Stream", frame)
+        # press 'q' to exit loop and end video capture
         if cv.waitKey(1) & 0xFF == ord('q'):
             break
-    
-    # some procedural stuff
     cap.release()
     cv.destroyAllWindows()
 
-    print(projection)
+# Returns Boolean indicating whether or not ArUco marker has been found, as well as corners and marker ids if found
+def detect_aruco_markers(frame):
+    found = False
+    # initialize dictionary of ArUco markers
+    aruco_dict = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_4X4_50)
+    # convert image to grayscale
+    gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+    corners, marker_ids, _ = cv.aruco.detectMarkers(gray, aruco_dict)
+    if marker_ids is not None and corners is not None:
+        found = True
+    return found, corners
 
-# Calculate projection matrix
-def projection_mtx(homo_matrix):
-    # compute inverse of intrinsic camera matrix
-    in_mtx_inv = np.linalg.inv(in_mtx)
-    # extract [R1 R2 t]
-    extract = np.dot(homo_matrix * (-1), in_mtx_inv)
-    # extract individual rotation and translation vectors
-    R1 = extract[:, 0]
-    R2 = extract[:, 1]
-    t = extract[:, 2]
+# If ArUco markers are found, use them to find the rotation and translation vectors
+# Rvecs and tvecs calculation from https://stackoverflow.com/questions/75750177/solve-pnp-or-estimate-pose-single-markers-which-is-better/75871586#75871586
+def get_rvecs_and_tvecs(marker_size, corners):
+    # use size (side length in cm) of square marker to estimate real world points
+    marker_pts = np.array([[-marker_size / 2, marker_size / 2, 0],
+                            [marker_size / 2, marker_size / 2, 0],
+                            [marker_size / 2, -marker_size / 2, 0],
+                            [-marker_size / 2, - marker_size / 2, 0]], dtype=np.float32)
+    rvecs = []
+    tvecs = []
+    for corner in corners:
+        _, R, t = cv.solvePnP(marker_pts, corner, IN_MTX_OPTIMAL, DIST_COEFFS, False, cv.SOLVEPNP_IPPE_SQUARE)
+        rvecs.append(R)
+        tvecs.append(t)
+    return rvecs, tvecs
 
-    # normalize rotation vectors
-    R1_norm = np.linalg.norm(R1, 2)
-    R2_norm = np.linalg.norm(R2, 2)
+def get_projection_matrix(rvecs, tvecs):
+    # use cv.Rodrigues() method to obtain 3x3 rotation matrix from 1x3 rotation vector
+    rmtx, _ = cv.Rodrigues(rvecs[0])
+    # construct extrinsic camera parameters matrix from rotation matrix and translation vectors
+    ex_mtx = np.array([[rmtx[0,0], rmtx[0,1], rmtx[0,2], tvecs[0][0,0]],
+                       [rmtx[1,0], rmtx[1,1], rmtx[1,2], tvecs[0][1,0]],
+                       [rmtx[2,0], rmtx[2,1], rmtx[2,2], tvecs[0][2,0]]])
+    #ex_mtx = np.array([[rmtx[0,0], rmtx[0,1], rmtx[0,2], tvecs[0][0,0]],
+                       #[rmtx[1,0], rmtx[1,1], rmtx[1,2], tvecs[0][1,0]],
+                       #[rmtx[2,0], rmtx[2,1], rmtx[2,2], tvecs[0][2,0]],
+                       #[0.0, 0.0, 0.0, 1.0]])
+    return np.dot(IN_MTX_OPTIMAL, ex_mtx)
 
-    # update values of R1 and R2 accordingly
-    l = sqrt(R1_norm*R2_norm)
-    R1 = np.divide(R1, l)
-    R2 = np.divide(R2, l)
-
-    c = np.add(R1, R2)
-    p = np.cross(R1, R2)
-    d = np.cross(c, p)
-
-    # perform transformation operations using the values of c and d
-    R1 = np.add((np.divide(c, np.linalg.norm(c, 2))), (np.divide(d, np.linalg.norm(d, 2))))
-    R1 = np.dot(R1, 1 / sqrt(2))
-    R2 = np.subtract((np.divide(c, np.linalg.norm(c, 2))), (np.divide(d, np.linalg.norm(d, 2))))
-    R2 = np.dot(R2, 1 / sqrt(2))
-    R3 = np.cross(R1, R2)
-
-    # combine vectors to form extrinsic camera matrix
-    projection = np.stack((R1, R2, R3, t), axis=1)
-    # multiply intrinsic and extrinsic matrices to obtain full camera projection matrix
-    projection = np.dot(in_mtx, projection)
-
-    return projection
-
-def render(frame, obj, projection, ref_shape):
-    vertices = np.array(list(obj.vertices), dtype=np.float32)
-    h, w = ref_shape[:2]
-
-    scale = 3
-    scale_matrix = np.eye(3) * scale
-
-    for face in obj.faces:
-        face_vertices, _, _, material = face
-
-        pts = np.array([vertices[v-1] for v in face_vertices])
-        pts = pts @ scale_matrix
-
-        # center model on reference image
-        pts[:, 0] += w / 2
-        pts[:, 1] += h / 2
-
-        pts = pts.reshape(-1, 1, 3)
-        dst = cv.perspectiveTransform(pts, projection)
-        imgpts = np.int32(dst)
-
-        # get material color
-        mtl = obj.mtl.get(material, {})
-        if 'Kd' in mtl:
-            color = tuple(int(c * 255) for c in mtl['Kd'])[::-1]
-        else:
-            color = (150, 150, 150)
-
-        cv.fillConvexPoly(frame, imgpts, color)
-
+# Returns frame with ArUco marker blacked out
+def render(frame, projection, corners):
+    for corner in corners:
+        cv.polylines(frame, [corner.astype(np.int32)], True, (0, 255, 255), 3, cv.LINE_AA)
     return frame
 
 if __name__ == "__main__":
     main()
+
+#sample_frame = cv.imread('aruco/sample-input1.png')
+#found, corners = detect_aruco_markers(sample_frame)
+#if found:
+    #rvecs, tvecs = get_rvecs_and_tvecs(20.2, corners)
+    #print(rvecs, tvecs)
+    #print(np.shape(rvecs), np.shape(tvecs))
+
+    #projection = get_projection_matrix(rvecs, tvecs)
+    #print(projection)
+    #print(np.shape(projection))
+
+    #sample_frame = render(sample_frame, projection, corners)
+#cv.imshow("Sample frame", sample_frame)
+#cv.waitKey(0)
+#cv.destroyAllWindows()
