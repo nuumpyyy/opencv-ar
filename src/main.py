@@ -1,6 +1,7 @@
 import numpy as np
 import cv2 as cv
 from constants import *
+from objloader import *
 
 def main():
     # initiate video capture
@@ -8,6 +9,8 @@ def main():
     cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
     cap.set(cv.CAP_PROP_FPS, 20)
+    # load 3D model from OBJ file
+    obj = OBJ('models/wolf.obj', swapyz=True)
     if not cap.isOpened():
         print("Video capture unsuccessful.")
         return
@@ -25,7 +28,7 @@ def main():
             # calculate projection matrix consisting of intrinsic and extrinsic camera parameters
             projection = get_projection_matrix(rvecs, tvecs)
             # render 3D model
-            frame = render(frame, projection, corners)
+            frame = render(frame, obj, projection, corners)
         # display frame
         cv.imshow("Stream", frame)
         # press 'q' to exit loop and end video capture
@@ -76,21 +79,26 @@ def get_projection_matrix(rvecs, tvecs):
     return np.dot(IN_MTX_OPTIMAL, ex_mtx)
 
 # Returns frame with ArUco marker blacked out
-def render(frame, projection, corners):
-    # little test, might go to shit
-    h, w = 2699, 2710
-    frame = np.ascontiguousarray(frame, dtype=np.uint8)
-    a = np.array([[0, 0, 0], [w, 0, 0], [w, h, 0], [0, h, 0]], np.float64)
-    imgpts = np.int32(cv.perspectiveTransform(a.reshape(-1, 1, 3), projection))
-    cv.fillConvexPoly(frame, imgpts, (0, 0, 0))
+def render(frame, obj, projection, corners):
     for c in corners:
         # draw square around ArUco marker
         cv.polylines(frame, [c.astype(np.int32)], True, (0, 255, 255), 3, cv.LINE_AA)
         # change the shape of numpy array to 4 by 2 for easier access
-        # will this work??? only one way to find out!
         c = c.reshape(4, 2)
         c = c.astype(np.int32)
-        cv.fillConvexPoly(frame, c, (0, 0, 0))
+        # black out ArUco marker
+        #cv.fillConvexPoly(frame, c, (0, 0, 0))
+        # slop slop slop everything below this comment is potential slop but everything above is lovely!
+        vertices = np.array(obj.vertices, dtype=np.float32)
+        center = vertices.mean(axis=0)
+        vertices -= center
+        for face in obj.faces:
+            face_vertices = face[0]
+            pts_3d = np.array([vertices[vertex - 1] for vertex in face_vertices], dtype=np.float32)
+            pts_3d[:, 2] += 10.0
+            pts_2d = cv.perspectiveTransform(pts_3d.reshape(-1, 1, 3), projection)
+            pts_2d = np.int32(pts_2d)
+            cv.fillConvexPoly(frame, pts_2d, (0, 0, 255))
     return frame
 
 if __name__ == "__main__":
