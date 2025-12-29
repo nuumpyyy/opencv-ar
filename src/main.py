@@ -10,7 +10,7 @@ def main():
     cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
     cap.set(cv.CAP_PROP_FPS, 20)
     # load 3D model from OBJ file
-    obj = OBJ('models/wolf.obj', swapyz=True)
+    obj = OBJ('models/gaming-chair.obj', swapyz=True)
     if not cap.isOpened():
         print("Video capture unsuccessful.")
         return
@@ -28,7 +28,7 @@ def main():
             # calculate projection matrix consisting of intrinsic and extrinsic camera parameters
             projection = get_projection_matrix(rvecs, tvecs)
             # render 3D model
-            frame = render(frame, obj, projection, corners)
+            frame = render(frame, obj, projection, corners, 1.5, (0, 0, 0)) # adjust scale as needed
         # display frame
         cv.imshow("Stream", frame)
         # press 'q' to exit loop and end video capture
@@ -72,51 +72,29 @@ def get_projection_matrix(rvecs, tvecs):
     ex_mtx = np.array([[rmtx[0,0], rmtx[0,1], rmtx[0,2], tvecs[0][0,0]],
                        [rmtx[1,0], rmtx[1,1], rmtx[1,2], tvecs[0][1,0]],
                        [rmtx[2,0], rmtx[2,1], rmtx[2,2], tvecs[0][2,0]]])
-    #ex_mtx = np.array([[rmtx[0,0], rmtx[0,1], rmtx[0,2], tvecs[0][0,0]],
-                       #[rmtx[1,0], rmtx[1,1], rmtx[1,2], tvecs[0][1,0]],
-                       #[rmtx[2,0], rmtx[2,1], rmtx[2,2], tvecs[0][2,0]],
-                       #[0.0, 0.0, 0.0, 1.0]])
     return np.dot(IN_MTX_OPTIMAL, ex_mtx)
 
 # Returns frame with ArUco marker blacked out
-def render(frame, obj, projection, corners):
+def render(frame, obj, projection, corners, scale, color):
     for c in corners:
-        # draw square around ArUco marker
+        # draw square around ArUco marker to show that it has been detected
         cv.polylines(frame, [c.astype(np.int32)], True, (0, 255, 255), 3, cv.LINE_AA)
-        # change the shape of numpy array to 4 by 2 for easier access
-        c = c.reshape(4, 2)
-        c = c.astype(np.int32)
-        # black out ArUco marker
-        #cv.fillConvexPoly(frame, c, (0, 0, 0))
-        # slop slop slop everything below this comment is potential slop but everything above is lovely!
+        # convert obj.vertices to numpy array so that mean can be calculated
         vertices = np.array(obj.vertices, dtype=np.float32)
+        # displace vertices somewhat towards the center of ArUco marker
         center = vertices.mean(axis=0)
         vertices -= center
         for face in obj.faces:
             face_vertices = face[0]
             pts_3d = np.array([vertices[vertex - 1] for vertex in face_vertices], dtype=np.float32)
             pts_3d[:, 2] += 10.0
-            pts_3d *= 0.05
+            pts_3d *= scale
+            # transform real world points to pixel coordinates
             pts_2d = cv.perspectiveTransform(pts_3d.reshape(-1, 1, 3), projection)
             pts_2d = np.int32(pts_2d)
-            cv.fillConvexPoly(frame, pts_2d, (0, 0, 255))
+            # fill in the model with any color of your choice
+            cv.fillConvexPoly(frame, pts_2d, color)
     return frame
 
 if __name__ == "__main__":
     main()
-
-#sample_frame = cv.imread('aruco/sample-input1.png')
-#found, corners = detect_aruco_markers(sample_frame)
-#if found:
-    #rvecs, tvecs = get_rvecs_and_tvecs(20.2, corners)
-    #print(rvecs, tvecs)
-    #print(np.shape(rvecs), np.shape(tvecs))
-
-    #projection = get_projection_matrix(rvecs, tvecs)
-    #print(projection)
-    #print(np.shape(projection))
-
-    #sample_frame = render(sample_frame, projection, corners)
-#cv.imshow("Sample frame", sample_frame)
-#cv.waitKey(0)
-#cv.destroyAllWindows()
