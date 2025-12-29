@@ -96,6 +96,7 @@ def render(frame, obj, projection, corners):
             face_vertices = face[0]
             pts_3d = np.array([vertices[vertex - 1] for vertex in face_vertices], dtype=np.float32)
             pts_3d[:, 2] += 10.0
+            pts_3d *= 0.05
             pts_2d = cv.perspectiveTransform(pts_3d.reshape(-1, 1, 3), projection)
             pts_2d = np.int32(pts_2d)
             cv.fillConvexPoly(frame, pts_2d, (0, 0, 255))

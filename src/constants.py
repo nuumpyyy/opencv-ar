@@ -11,7 +11,7 @@ IN_MTX_OPTIMAL = np.array([[3110.46091, 0, 1525.90159],
                            [0, 0, 1]])
 
 # Distortion coefficients calculated in script
-DIST_COEFFS = np.array([[0.249932046, -1.29011763, -1017.17369, -2432.30478, 1.78343001]])
+DIST_COEFFS = np.array([[0.249932046, -1.29011763, -0.00101717369, -0.00243230478, 1.78343001]])
 
 #print(IN_MTX_ORIGINAL, IN_MTX_OPTIMAL, DIST_COEFFS)
 #print(np.shape(IN_MTX_ORIGINAL), np.shape(IN_MTX_OPTIMAL), np.shape(DIST_COEFFS))
