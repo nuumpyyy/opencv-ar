@@ -4,7 +4,7 @@ Real-time augmented reality application built with Python, NumPy, and OpenCV tha
 # Demo
 [Download / watch the demo](media/demo.mp4)
 
-:3
+:33
 
 # Usage
 * Replace the images in `calibration/images` with camera calibration images taken from the camera which you wish to use to run the program
