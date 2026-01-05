@@ -2,9 +2,8 @@
 Real-time augmented reality application built with Python, NumPy, and OpenCV that renders .obj files onto ArUco markers
 
 # Demo
-<video width="640" controls poster="media/thumbnail.jpeg">
-  <source src="media/demo.mp4" type="video/mp4">
-</video>
+[Download / watch the demo](media/demo.mp4)
+
 :3
 
 # Usage
