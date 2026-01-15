@@ -4,6 +4,8 @@ Real-time augmented reality application built with Python, NumPy, and OpenCV tha
 # Demo
 [![Watch the video](https://img.youtube.com/vi/OksYdurXw8I/0.jpg)](www.youtube.com)
 
+https://www.youtube.com/watch?v=OksYdurXw8I (open with this link, not by clicking on thumbnail)
+
 :33
 
 # Usage
